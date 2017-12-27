@@ -522,12 +522,12 @@ TBS_Sign* ESL::DecodeTBSSign(ASN1_TYPE* at)
 
 SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 {
-	SESeal* seSeal = new SESeal();
-	SES_SealInfo *sesSealInfo = new SES_SealInfo();
-	SES_Header *header = SES_Header_new();
-	SES_ESPropertyInfo* property = new SES_ESPropertyInfo();
-	SES_ESPictureInfo* picture = new SES_ESPictureInfo();
-	SES_SignInfo *sesSignInfo = new SES_SignInfo();
+	SESeal* seSeal = SESeal_new();
+	SES_SealInfo *sesSealInfo = seSeal->sealInfo;
+	SES_Header *header = sesSealInfo->header;
+	SES_ESPropertyInfo* property = sesSealInfo->property;
+	SES_ESPictureInfo* picture = sesSealInfo->picture;
+	SES_SignInfo *sesSignInfo = seSeal->signInfo;
 
 	header->ID = toAsn1String(sealInfo.strID, V_ASN1_IA5STRING);
 	header->version = toAsn1String(sealInfo.strSealVersion, V_ASN1_INTEGER);
@@ -551,12 +551,6 @@ SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 	sesSignInfo->cert = toAsn1String(strCertData, V_ASN1_OCTET_STRING);
 	sesSignInfo->signatureAlgorithm = toAsn1Object(sealInfo.strSealSignAlgo);
 	sesSignInfo->signData = toAsn1String(sealInfo.strSealSignRes, V_ASN1_BIT_STRING);
-
-	sesSealInfo->header = header;
-	sesSealInfo->property = property;
-	sesSealInfo->picture = picture;
-	seSeal->sealInfo = sesSealInfo;
-	seSeal->signInfo = sesSignInfo;
 
 	return seSeal;
 }
