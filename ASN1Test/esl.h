@@ -5,7 +5,6 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
-#include <list>
 #include <string>
 #include <iostream>
 #include "TGSignCommonInfo.h"
@@ -96,10 +95,17 @@ struct ExtData {
 };
 DECLARE_ASN1_FUNCTIONS(ExtData)
 
+typedef STACK_OF(ExtData) ExtDatas;
+DECLARE_STACK_OF(ExtData)
+DECLARE_ASN1_FUNCTIONS(ExtDatas)
+
+typedef STACK_OF(ASN1_OCTET_STRING) SEQUENCE_CERTLIST;
+DECLARE_ASN1_FUNCTIONS(SEQUENCE_CERTLIST)
+
 struct SES_ESPropertyInfo {
     ASN1_INTEGER* type;
     ASN1_UTF8STRING* name;
-    list<ASN1_OCTET_STRING*> certList;
+	SEQUENCE_CERTLIST* certList;
     ASN1_UTCTIME* createDate;
     ASN1_UTCTIME* validStart;
     ASN1_UTCTIME* validEnd;
@@ -118,8 +124,8 @@ struct SES_SealInfo {
     SES_Header* header;
     ASN1_IA5STRING* esID;
     SES_ESPropertyInfo* property;
-    SES_ESPictureInfo* picture;
-    list<ExtData*> extDatas;
+	SES_ESPictureInfo* picture;
+	ExtDatas* extDatas;
 };
 DECLARE_ASN1_FUNCTIONS(SES_SealInfo)
 

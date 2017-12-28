@@ -3,29 +3,31 @@
 
 extern long WriteDataToFile(const char* data, long dataLen, char* fileName);
 
-inline asn1_string_st* toAsn1String(const string& value, int type)
+inline asn1_string_st* toAsn1String(asn1_string_st** str, const string& value, int type)
 {
-	asn1_string_st* pAsn1Str = ASN1_STRING_type_new(type);
+	if (!*str){
+		*str = ASN1_STRING_type_new(type);
+	}
 	int len = value.length();
-	ASN1_STRING_set(pAsn1Str, (void*)value.c_str(), len);
-	return pAsn1Str;
+	ASN1_STRING_set(*str, (void*)value.c_str(), len);
+	return *str;
 }
 
-inline asn1_string_st* toAsn1String(const int value, int type = V_ASN1_INTEGER)
+inline asn1_string_st* toAsn1String(asn1_string_st** str, const int value, int type = V_ASN1_INTEGER)
 {
 	char buf[256] = {};
 	sprintf(buf, "%d", value);
-	return toAsn1String(buf, type);
+	return toAsn1String(str, buf, type);
 }
 
-inline asn1_object_st* toAsn1Object(const string& value)
+inline asn1_object_st* toAsn1Object(asn1_object_st** obj, const string& value)
 {
-	int nid = 0;
-	const char *sn = "sn";
-	const char *ln = "ln";
-	asn1_object_st* pAsn1Obj = ASN1_OBJECT_create(nid, (unsigned char*)value.c_str(), value.length(), sn, ln);
-
-	return pAsn1Obj;
+	if (!*obj){
+		*obj = ASN1_OBJECT_new();
+	}
+	const unsigned char* buf = (unsigned char*)value.c_str();
+	c2i_ASN1_OBJECT(obj, &buf, value.length());
+	return *obj;
 }
 
 ASN1_SEQUENCE(SES_Header) = {
@@ -33,7 +35,6 @@ ASN1_SEQUENCE(SES_Header) = {
 	ASN1_SIMPLE(SES_Header, version, ASN1_INTEGER),
 	ASN1_SIMPLE(SES_Header, vid, ASN1_IA5STRING),
 } ASN1_SEQUENCE_END(SES_Header);
-
 IMPLEMENT_ASN1_FUNCTIONS(SES_Header)
 
 ASN1_SEQUENCE(ExtData) = {
@@ -41,12 +42,22 @@ ASN1_SEQUENCE(ExtData) = {
 	ASN1_SIMPLE(ExtData, critical, ASN1_BOOLEAN),
 	ASN1_SIMPLE(ExtData, extnValue, ASN1_OCTET_STRING),
 } ASN1_SEQUENCE_END(ExtData);
-
 IMPLEMENT_ASN1_FUNCTIONS(ExtData)
+
+ASN1_ITEM_TEMPLATE(ExtDatas) =
+ASN1_EX_TEMPLATE_TYPE(ASN1_TFLG_SEQUENCE_OF, 0, TGExtData, ExtData)
+ASN1_ITEM_TEMPLATE_END(ExtDatas)
+IMPLEMENT_ASN1_FUNCTIONS(ExtDatas)
+
+ASN1_ITEM_TEMPLATE(SEQUENCE_CERTLIST) =
+ASN1_EX_TEMPLATE_TYPE(ASN1_TFLG_SEQUENCE_OF, 0, TGCertList, ASN1_OCTET_STRING)
+ASN1_ITEM_TEMPLATE_END(SEQUENCE_CERTLIST)
+IMPLEMENT_ASN1_FUNCTIONS(SEQUENCE_CERTLIST)
 
 ASN1_SEQUENCE(SES_ESPropertyInfo) = {
 	ASN1_SIMPLE(SES_ESPropertyInfo, type, ASN1_INTEGER),
 	ASN1_SIMPLE(SES_ESPropertyInfo, name, ASN1_UTF8STRING),
+	ASN1_SIMPLE(SES_ESPropertyInfo, certList, SEQUENCE_CERTLIST),
 	ASN1_SIMPLE(SES_ESPropertyInfo, createDate, ASN1_UTCTIME),
 	ASN1_SIMPLE(SES_ESPropertyInfo, validStart, ASN1_UTCTIME),
 	ASN1_SIMPLE(SES_ESPropertyInfo, validEnd, ASN1_UTCTIME),
@@ -66,6 +77,7 @@ ASN1_SEQUENCE(SES_SealInfo) = {
 	ASN1_SIMPLE(SES_SealInfo, esID, ASN1_IA5STRING),
 	ASN1_SIMPLE(SES_SealInfo, property, SES_ESPropertyInfo),
 	ASN1_SIMPLE(SES_SealInfo, picture, SES_ESPictureInfo),
+	ASN1_SIMPLE(SES_SealInfo, extDatas, ExtDatas),
 } ASN1_SEQUENCE_END(SES_SealInfo);
 IMPLEMENT_ASN1_FUNCTIONS(SES_SealInfo)
 
@@ -219,7 +231,7 @@ SES_SealInfo* ESL::DecodeSealInfo(ASN1_TYPE* at)
                     for(int i = 0; i < c; i++)
                     {
                         ASN1_TYPE* extData = sk_ASN1_TYPE_value(stc, i);
-                        info->extDatas.push_back(DecodeExtData(extData));
+                        //info->extDatas.push_back(DecodeExtData(extData));
                     }
                     SKM_sk_free(ASN1_TYPE, stc);
                 }
@@ -333,7 +345,7 @@ SES_ESPropertyInfo* ESL::DecodeProperty(ASN1_TYPE* at)
                 STACK_OF(ASN1_TYPE) *stc = ASN1_seq_unpack_ASN1_TYPE(dc, lc, d2i_ASN1_TYPE, ASN1_TYPE_free);
                 for(int i = 0; i < SKM_sk_num(ASN1_TYPE, stc); i++)
                 {                    
-                    property->certList.push_back(sk_ASN1_TYPE_value(stc, i)->value.octet_string);
+                    //property->certList.push_back(sk_ASN1_TYPE_value(stc, i)->value.octet_string);
                 }
                 SKM_sk_free(ASN1_TYPE, stc);
             }
@@ -529,28 +541,37 @@ SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 	SES_ESPictureInfo* picture = sesSealInfo->picture;
 	SES_SignInfo *sesSignInfo = seSeal->signInfo;
 
-	header->ID = toAsn1String(sealInfo.strID, V_ASN1_IA5STRING);
-	header->version = toAsn1String(sealInfo.strSealVersion, V_ASN1_INTEGER);
-	header->vid = toAsn1String(sealInfo.strSealVid, V_ASN1_IA5STRING);
+	header->ID = toAsn1String(&header->ID, sealInfo.strID, V_ASN1_IA5STRING);
+	header->version = toAsn1String(&header->version, sealInfo.strSealVersion, V_ASN1_INTEGER);
+	header->vid = toAsn1String(&header->vid, sealInfo.strSealVid, V_ASN1_IA5STRING);
 
-	sesSealInfo->esID = toAsn1String(sealInfo.strSealVid, V_ASN1_IA5STRING);
+	sesSealInfo->esID = toAsn1String(&sesSealInfo->esID, sealInfo.strSealVid, V_ASN1_IA5STRING);
 	
-	property->type = toAsn1String(sealInfo.nType, V_ASN1_INTEGER);
-	property->name = toAsn1String(sealInfo.strName, V_ASN1_UTF8STRING);
-	property->createDate = toAsn1String(sealInfo.strSealCreateData, V_ASN1_UTCTIME);
-	property->validStart = toAsn1String(sealInfo.strSealValidStart, V_ASN1_UTCTIME);
-	property->validEnd = toAsn1String(sealInfo.strSealValidEnd, V_ASN1_UTCTIME);
+	property->type = toAsn1String(&property->type, sealInfo.nType, V_ASN1_INTEGER);
+	property->name = toAsn1String(&property->name, sealInfo.strName, V_ASN1_UTF8STRING);
+	ASN1_OCTET_STRING* cert = nullptr;
+	cert = toAsn1String(&cert, sealInfo.strSealCertB64, V_ASN1_OCTET_STRING);
+	SKM_sk_push(ASN1_OCTET_STRING, property->certList, cert);
+	property->createDate = toAsn1String(&property->createDate, sealInfo.strSealCreateData, V_ASN1_UTCTIME);
+	property->validStart = toAsn1String(&property->validStart, sealInfo.strSealValidStart, V_ASN1_UTCTIME);
+	property->validEnd = toAsn1String(&property->validEnd, sealInfo.strSealValidEnd, V_ASN1_UTCTIME);
 
-	picture->type = toAsn1String(sealInfo.nType, V_ASN1_INTEGER);
+	picture->type = toAsn1String(&picture->type, sealInfo.nType, V_ASN1_INTEGER);
 	string strImgData = Base64Tools::base64_decode(sealInfo.strImgBase64);
-	picture->data = toAsn1String(strImgData, V_ASN1_OCTET_STRING);
-	picture->width = toAsn1String(sealInfo.nImageWidth, V_ASN1_INTEGER);
-	picture->height = toAsn1String(sealInfo.nImageHeight, V_ASN1_INTEGER);
+	picture->data = toAsn1String(&picture->data, strImgData, V_ASN1_OCTET_STRING);
+	picture->width = toAsn1String(&picture->width, sealInfo.nImageWidth, V_ASN1_INTEGER);
+	picture->height = toAsn1String(&picture->height, sealInfo.nImageHeight, V_ASN1_INTEGER);
 	
 	string strCertData = Base64Tools::base64_decode(sealInfo.strSealCertB64);
-	sesSignInfo->cert = toAsn1String(strCertData, V_ASN1_OCTET_STRING);
-	sesSignInfo->signatureAlgorithm = toAsn1Object(sealInfo.strSealSignAlgo);
-	sesSignInfo->signData = toAsn1String(sealInfo.strSealSignRes, V_ASN1_BIT_STRING);
+	sesSignInfo->cert = toAsn1String(&sesSignInfo->cert, strCertData, V_ASN1_OCTET_STRING);
+	sesSignInfo->signatureAlgorithm = toAsn1Object(&sesSignInfo->signatureAlgorithm, sealInfo.strSealSignAlgo);
+	sesSignInfo->signData = toAsn1String(&sesSignInfo->signData, sealInfo.strSealSignRes, V_ASN1_BIT_STRING);
+
+	ExtData* ext = ExtData_new();
+	ext->extnID = toAsn1Object(&ext->extnID, "TG_Extn_ID");
+	ext->critical = 0;
+	ext->extnValue = toAsn1String(&ext->extnValue, "TG_Extn_Value", V_ASN1_OCTET_STRING);
+	SKM_sk_push(ExtData, sesSealInfo->extDatas, ext);
 
 	return seSeal;
 }
