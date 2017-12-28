@@ -10,77 +10,6 @@
 #include "TGSignCommonInfo.h"
 using namespace std;
 
-enum StringType {
-    IA5,
-    UTF8,
-    OCTET,
-    BIT
-};
-
-struct SES_String {
-    SES_String(const unsigned char* d, int length, StringType t = IA5)
-    {
-        this->data = string((const char*)d, length);
-        this->type = t;
-    }
-
-    SES_String(unsigned char* d, int length, StringType t = IA5)
-    {
-        this->data = string((const char*)d, length);
-        this->type = t;
-    }
-
-    SES_String(const char* d, int length, StringType t = IA5)
-    {
-        this->data = string(d, length);
-        this->type = t;
-    }
-
-    SES_String(string d, StringType t = IA5)
-    {
-        this->data = d;
-        this->type = t;
-    }
-
-    string data;
-    StringType type/* = IA5*/;
-};
-
-struct SES_UTCTime {
-
-    static SES_UTCTime* Parse(unsigned char* d, int length)
-    {
-        string utc((const char*)d, length);
-        if (utc.at(utc.length() - 1) == 'Z')
-        { //YYMMDDhhmmssZ
-            SES_UTCTime* ut = new SES_UTCTime();
-            sscanf(utc.data(), "%2d%2d%2d%2d%2d%2d",
-                   &(ut->year), &(ut->month), &(ut->day),
-                   &(ut->hour), &(ut->minute), &(ut->second));
-            ut->year += 2000;
-            return ut;
-        }
-        else if (utc.length() == 14)
-        { //Unrecognized time: YYYYMMDDhhmmss
-            SES_UTCTime* ut = new SES_UTCTime();
-            sscanf(utc.data(), "%4d%2d%2d%2d%2d%2d",
-                   &(ut->year), &(ut->month), &(ut->day),
-                   &(ut->hour), &(ut->minute), &(ut->second));
-            return ut;
-        }
-        cout << "Unrecognized time: " << utc << endl;
-        return NULL;
-    }
-
-    int year, month, day;
-    int hour, minute, second;
-
-    void debug()
-    {
-        printf("20%d-%d-%d %d:%d:%d UTC\n", year, month, day, hour, minute, second);
-    }
-};
-
 struct SES_Header {
     ASN1_IA5STRING* ID;
     ASN1_INTEGER* version;
@@ -96,7 +25,6 @@ struct ExtData {
 DECLARE_ASN1_FUNCTIONS(ExtData)
 
 typedef STACK_OF(ExtData) ExtDatas;
-DECLARE_STACK_OF(ExtData)
 DECLARE_ASN1_FUNCTIONS(ExtDatas)
 
 typedef STACK_OF(ASN1_OCTET_STRING) SEQUENCE_CERTLIST;
@@ -163,28 +91,23 @@ class ESL
 {
 public:
     ESL();
-
-    static void Init();
+	~ESL();
+	static void Init();
 	static void CleanUp();
-    static SESeal* Parse(string path);
-    static SESeal* Parse(char* data, int len);
-    static int EncodeSignature(long version, unsigned char* sealData, int sealDataLen,
-		unsigned char* timeInfo, unsigned char* dataHash, unsigned char* propertyInfo,
-		unsigned char* cert, unsigned char* signatureAlgorithm, unsigned char* signatureValue,
-		string &SESSignature);
-    static SES_Signature* DecodeSignature(char* data, int len);
-    static string OIDToText(ASN1_OBJECT* oid);
 
 	static SESeal* TGSealToSESeal(const TGSealInfo& sealInfo);
-	static TGSealInfo* SESealToTGSeal(const SESeal& sealInfo);
-private:
-    static SES_SealInfo* DecodeSealInfo(ASN1_TYPE* at);
-    static SES_SignInfo* DecodeSignInfo(ASN1_TYPE* at);
-    static SES_Header* DecodeHeader(ASN1_TYPE* at);
-    static SES_ESPropertyInfo* DecodeProperty(ASN1_TYPE* at);
-    static SES_ESPictureInfo* DecodePicture(ASN1_TYPE* at);
-    static ExtData* DecodeExtData(ASN1_TYPE* at);
-    static TBS_Sign* DecodeTBSSign(ASN1_TYPE* at);
+	static SESeal* Parse(string path);
+	static SESeal* Parse(char* data, int len);
+	static SES_Signature* EncodeSignature(long version, const string& sealData, const string& timeInfo, const string& dataHash,
+		const string& propertyInfo, const string& cert, const string& signatureAlgorithm, const string& signatureValue);
+	static SES_Signature* DecodeSignature(char* data, int len);
+
+	static string GetValue(SESeal* seseal);
+	static string GetValue(TBS_Sign* tbssign);
+	static string GetValue(SES_Signature* sessignature);
+
+	static void Free(SESeal** seseal);
+	static void Free(SES_Signature** sessignature);
 };
 
 #endif // ESL_H

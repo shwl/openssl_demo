@@ -1,9 +1,7 @@
 #include "esl.h"
 #include "Base64Tools.h"
 
-extern long WriteDataToFile(const char* data, long dataLen, char* fileName);
-
-inline asn1_string_st* toAsn1String(asn1_string_st** str, const string& value, int type)
+inline asn1_string_st* toAsn1String(asn1_string_st** str, const string& value, int type = V_ASN1_IA5STRING)
 {
 	if (!*str){
 		*str = ASN1_STRING_type_new(type);
@@ -113,6 +111,12 @@ IMPLEMENT_ASN1_FUNCTIONS(SES_Signature)
 
 ESL::ESL()
 {
+	Init();
+}
+
+ESL::~ESL()
+{
+	CleanUp();
 }
 
 void ESL::Init()
@@ -173,363 +177,34 @@ SESeal* ESL::Parse(string path)
 
 SESeal* ESL::Parse(char* data, int len)
 {
-    STACK_OF(ASN1_TYPE) *root = ASN1_seq_unpack_ASN1_TYPE((const unsigned char*)data, len, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
 	SESeal* seal = nullptr;
-
-    if (SKM_sk_num(ASN1_TYPE, root) == 2)
-    {
-		seal = new SESeal();
-		seal->sealInfo = DecodeSealInfo(sk_ASN1_TYPE_value(root, 0));
-		seal->signInfo = DecodeSignInfo(sk_ASN1_TYPE_value(root, 1));
-    }
-	else
-	{
-		cout << "ESL root must has 2 sequences" << endl;
-	}
-
-    SKM_sk_free(ASN1_TYPE, root);
-
+	d2i_SESeal(&seal, (const unsigned char**)&data, len);
     return seal;
 }
 
-SES_SealInfo* ESL::DecodeSealInfo(ASN1_TYPE* at)
+SES_Signature* ESL::EncodeSignature(long version, const string& sealData, const string& timeInfo, const string& dataHash,
+	const string& propertyInfo, const string& cert, const string& signatureAlgorithm, const string& signatureValue)
 {
-    SES_SealInfo* info = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
+	SES_Signature* sessignature = SES_Signature_new();
+	TBS_Sign* pToSign = sessignature->toSign;
+	toAsn1String(&pToSign->cert, version);
+	const char* pSealData = sealData.c_str();
+	d2i_SESeal(&pToSign->seal, (const unsigned char**)&pSealData, sealData.length());
+	toAsn1String(&pToSign->timeInfo, timeInfo, V_ASN1_BIT_STRING);
+	toAsn1String(&pToSign->dataHash, dataHash, V_ASN1_BIT_STRING);
+	toAsn1String(&pToSign->propertyInfo, propertyInfo, V_ASN1_IA5STRING);
+	toAsn1String(&pToSign->cert, cert, V_ASN1_OCTET_STRING);
+	toAsn1Object(&pToSign->signatureAlgorithm, signatureAlgorithm);
 
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count >= 4 || count <= 5)
-        {
-            info = new SES_SealInfo();
-
-            info->header = DecodeHeader(sk_ASN1_TYPE_value(st, 0));
-
-//            ASN1_STRING* esID = sk_ASN1_TYPE_value(st, 1)->value.ia5string;
-            info->esID = sk_ASN1_TYPE_value(st, 1)->value.ia5string;
-
-            info->property = DecodeProperty(sk_ASN1_TYPE_value(st, 2));
-
-            info->picture = DecodePicture(sk_ASN1_TYPE_value(st, 3));
-
-            if (count == 5)
-            {
-                ASN1_TYPE* atc = sk_ASN1_TYPE_value(st, 4);
-                if (ASN1_TYPE_get(atc) == V_ASN1_SEQUENCE)
-                {
-                    ASN1_STRING* seqc = atc->value.sequence;
-                    const unsigned char* dc = (const unsigned char*)(seqc->data);
-                    int lc = seqc->length;
-                    STACK_OF(ASN1_TYPE) *stc = ASN1_seq_unpack_ASN1_TYPE(dc, lc, d2i_ASN1_TYPE, ASN1_TYPE_free);
-                    int c = SKM_sk_num(ASN1_TYPE, stc);
-                    for(int i = 0; i < c; i++)
-                    {
-                        ASN1_TYPE* extData = sk_ASN1_TYPE_value(stc, i);
-                        //info->extDatas.push_back(DecodeExtData(extData));
-                    }
-                    SKM_sk_free(ASN1_TYPE, stc);
-                }
-                ASN1_TYPE_free(atc);
-            }
-        }
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return info;
-}
-
-SES_SignInfo* ESL::DecodeSignInfo(ASN1_TYPE* at)
-{
-    SES_SignInfo* info = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 3)
-        {
-            info = new SES_SignInfo();            
-            info->cert = sk_ASN1_TYPE_value(st, 0)->value.octet_string;
-
-            info->signatureAlgorithm = sk_ASN1_TYPE_value(st, 1)->value.object;
-
-            info->signData = sk_ASN1_TYPE_value(st, 2)->value.bit_string;
-        }
-    }
-    ASN1_TYPE_free(at);
-    return info;
-}
-
-SES_Header* ESL::DecodeHeader(ASN1_TYPE* at)
-{
-    SES_Header* header = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 3)
-        {
-            header = new SES_Header();
-
-            header->ID = sk_ASN1_TYPE_value(st, 0)->value.ia5string;
-
-            ASN1_INTEGER* version = sk_ASN1_TYPE_value(st, 1)->value.integer;
-            long v = ASN1_INTEGER_get(version);
-            if (v == 0xffffffffL)
-            {
-                cout << "The ASN1 Integer is too large to fit in a long" << endl;
-            }
-            else
-            {
-                header->version = version;
-            }
-
-            header->vid = sk_ASN1_TYPE_value(st, 2)->value.ia5string;
-        }
-
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return header;
-}
-
-SES_ESPropertyInfo* ESL::DecodeProperty(ASN1_TYPE* at)
-{
-    SES_ESPropertyInfo* property = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 6)
-        {
-            property = new SES_ESPropertyInfo();
-
-            ASN1_INTEGER* type = sk_ASN1_TYPE_value(st, 0)->value.integer;
-            long v = ASN1_INTEGER_get(type);
-            if (v == 0xffffffffL)
-            {
-                cout << "The ASN1 Integer is too large to fit in a long" << endl;
-            }
-            else
-            {
-                property->type = type;
-            }
-
-            property->name = sk_ASN1_TYPE_value(st, 1)->value.utf8string;
-            ASN1_TYPE* atc = sk_ASN1_TYPE_value(st, 2);
-            if (ASN1_TYPE_get(atc) == V_ASN1_SEQUENCE)
-            {
-                ASN1_STRING* seqc = atc->value.sequence;
-                const unsigned char* dc = (const unsigned char*)(seqc->data);
-                int lc = seqc->length;
-                STACK_OF(ASN1_TYPE) *stc = ASN1_seq_unpack_ASN1_TYPE(dc, lc, d2i_ASN1_TYPE, ASN1_TYPE_free);
-                for(int i = 0; i < SKM_sk_num(ASN1_TYPE, stc); i++)
-                {                    
-                    //property->certList.push_back(sk_ASN1_TYPE_value(stc, i)->value.octet_string);
-                }
-                SKM_sk_free(ASN1_TYPE, stc);
-            }
-            ASN1_TYPE_free(atc);
-
-            property->createDate = sk_ASN1_TYPE_value(st, 3)->value.utctime;
-
-            property->validStart = sk_ASN1_TYPE_value(st, 4)->value.utctime;
-
-            property->validEnd = sk_ASN1_TYPE_value(st, 5)->value.utctime;
-        }
-
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return property;
-}
-
-SES_ESPictureInfo* ESL::DecodePicture(ASN1_TYPE* at)
-{
-    SES_ESPictureInfo* info = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 4)
-        {
-            info = new SES_ESPictureInfo();
-
-            info->type = sk_ASN1_TYPE_value(st, 0)->value.ia5string;
-
-            info->data = sk_ASN1_TYPE_value(st, 1)->value.octet_string;
-
-            ASN1_INTEGER* width = sk_ASN1_TYPE_value(st, 2)->value.integer;
-            long vw = ASN1_INTEGER_get(width);
-            if (vw == 0xffffffffL)
-            {
-                cout << "The ASN1 Integer is too large to fit in a long" << endl;
-            }
-            else
-            {
-                info->width = width;
-            }
-
-            ASN1_INTEGER* height = sk_ASN1_TYPE_value(st, 3)->value.integer;
-            long vh = ASN1_INTEGER_get(height);
-            if (vh == 0xffffffffL)
-            {
-                cout << "The ASN1 Integer is too large to fit in a long" << endl;
-            }
-            else
-            {
-                info->height = height;
-            }
-        }
-
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return info;
-}
-
-ExtData* ESL::DecodeExtData(ASN1_TYPE* at)
-{
-    ExtData* ext = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 3)
-        {
-            ext = new ExtData();            
-            ext->extnID = sk_ASN1_TYPE_value(st, 0)->value.object;
-            ext->critical = sk_ASN1_TYPE_value(st, 1)->value.boolean;
-            ext->extnValue = sk_ASN1_TYPE_value(st, 2)->value.octet_string;
-        }
-
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return ext;
-}
-
-string ESL::OIDToText(ASN1_OBJECT *oid)
-{
-    char buff[1024];
-    int l = OBJ_obj2txt(buff, 1024, oid, 0);
-    return string((const char*)buff, l);
-}
-
-int ESL::EncodeSignature(long version, unsigned char* sealData, int sealDataLen,
-	unsigned char* timeInfo, unsigned char* dataHash, unsigned char* propertyInfo,
-	unsigned char* cert, unsigned char* signatureAlgorithm, unsigned char* signatureValue,
-	string &SESSignature)
-{
-    SES_Signature* sessignature = new SES_Signature();
-    TBS_Sign* pToSign = new TBS_Sign();
-
-    pToSign->cert->data = cert;
-    pToSign->cert->type = OCTET;
-    pToSign->dataHash->data = dataHash;
-    pToSign->dataHash->type = OCTET;
-    pToSign->propertyInfo->data = propertyInfo;
-    pToSign->propertyInfo->type = OCTET;
-    SESeal* seal = Parse((char*)sealData, sealDataLen);
-    pToSign->seal = seal;
-    string s((const char*)signatureAlgorithm);
-    pToSign->signatureAlgorithm->data = signatureAlgorithm;
-    pToSign->timeInfo->data = timeInfo;
-    pToSign->version->data = (unsigned char*)version;
-
-    sessignature->toSign = pToSign;
-    sessignature->signature->data = signatureValue;
-    sessignature->signature->type = OCTET;
-    return 0;
+	toAsn1String(&sessignature->signature, signatureValue, V_ASN1_BIT_STRING);
+	return sessignature;
 }
 
 SES_Signature* ESL::DecodeSignature(char* data, int len)
 {
-    STACK_OF(ASN1_TYPE) *root = ASN1_seq_unpack_ASN1_TYPE((const unsigned char*)data, len, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-    if (SKM_sk_num(ASN1_TYPE, root) != 2)
-    {
-        cout << "Signature root must has 2 sequences" << endl;
-        return NULL;
-    }
-
-    SES_Signature* signatureses = new SES_Signature();
-    signatureses->toSign = DecodeTBSSign(sk_ASN1_TYPE_value(root, 0));    
-    signatureses->signature = sk_ASN1_TYPE_value(root, 1)->value.octet_string;
-    SKM_sk_free(ASN1_TYPE, root);
-
+	SES_Signature* signatureses = nullptr;
+	d2i_SES_Signature(&signatureses, (const unsigned char**)&data, len);
     return signatureses;
-}
-
-TBS_Sign* ESL::DecodeTBSSign(ASN1_TYPE* at)
-{
-    TBS_Sign* tbs_sign = NULL;
-    if (ASN1_TYPE_get(at) == V_ASN1_SEQUENCE)
-    {
-        ASN1_STRING* seq = at->value.sequence;
-        const unsigned char* d = (const unsigned char*)(seq->data);
-        int l = seq->length;
-
-        STACK_OF(ASN1_TYPE) *st = ASN1_seq_unpack_ASN1_TYPE(d, l, d2i_ASN1_TYPE, ASN1_TYPE_free);
-
-        int count = SKM_sk_num(ASN1_TYPE, st);
-        if (count == 7)
-        {
-            tbs_sign = new TBS_Sign();
-
-            ASN1_INTEGER* ver = sk_ASN1_TYPE_value(st, 0)->value.integer;
-            long v = ASN1_INTEGER_get(ver);
-            if (v == 0xffffffffL)
-            {
-                cout << "The ASN1 Integer is too large to fit in a long" << endl;
-            }
-            else
-            {
-                tbs_sign->version = ver;
-            }
-            ASN1_OCTET_STRING* sealA = sk_ASN1_TYPE_value(st, 1)->value.octet_string;
-            tbs_sign->seal = Parse((char*)sealA->data,sealA->length);            
-            tbs_sign->timeInfo = sk_ASN1_TYPE_value(st, 2)->value.utctime;
-            tbs_sign->dataHash = sk_ASN1_TYPE_value(st, 3)->value.octet_string;
-            tbs_sign->propertyInfo = sk_ASN1_TYPE_value(st, 4)->value.octet_string;
-            tbs_sign->cert = sk_ASN1_TYPE_value(st, 5)->value.octet_string;
-            tbs_sign->signatureAlgorithm = sk_ASN1_TYPE_value(st, 6)->value.object;
-        }
-
-        SKM_sk_free(ASN1_TYPE, st);
-    }
-    ASN1_TYPE_free(at);
-    return tbs_sign;
 }
 
 SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
@@ -574,4 +249,38 @@ SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 	SKM_sk_push(ExtData, sesSealInfo->extDatas, ext);
 
 	return seSeal;
+}
+
+#define TG_GETASN1VALUE(data, i2dfunc) string str; \
+	unsigned char* out = nullptr; \
+	int nLen = i2dfunc(data, &out); \
+	str.append((char*)out, nLen); \
+	OPENSSL_free(out); \
+	return str;
+
+string ESL::GetValue(SESeal* seseal)
+{
+	TG_GETASN1VALUE(seseal, i2d_SESeal);
+}
+
+string ESL::GetValue(TBS_Sign* tbssign)
+{
+	TG_GETASN1VALUE(tbssign, i2d_TBS_Sign);
+}
+
+string ESL::GetValue(SES_Signature* sessignature)
+{
+	TG_GETASN1VALUE(sessignature, i2d_SES_Signature);
+}
+
+void ESL::Free(SESeal** seseal)
+{
+	SESeal_free(*seseal);
+	*seseal = nullptr;
+}
+
+void ESL::Free(SES_Signature** sessignature)
+{
+	SES_Signature_free(*sessignature);
+	*sessignature = nullptr;
 }

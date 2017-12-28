@@ -34,6 +34,7 @@ long WriteDataToFile(const char* data, long dataLen = -1, char* fileName = nullp
 
 	return lRes;
 }
+#if 0
 
 #define ECCref_MAX_BITS 256 
 
@@ -125,7 +126,9 @@ int d2i_ECC_PublicKey(ECCrefPublicKey *ins, const unsigned char **ppin, long ppl
 	ASN_ECCPUBLICKEY_free(ec);
 	return 1;
 }
+#endif
 
+#if 0
 
 #include <stdio.h>
 
@@ -285,11 +288,11 @@ int	test()
 	return 0;
 
 }
+#endif
 
 int main(int argc, char* argv[])
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF);
-	test();
 	//_CrtSetBreakAlloc(727);
 // 	ECCrefPublicKey cipher;
 // 	unsigned char* out = nullptr;
@@ -298,12 +301,11 @@ int main(int argc, char* argv[])
 
 	SESeal* pSESeal = nullptr;
 
-	ESL::Init();
-
 	if (argc > 1)
 	{
-		//pSESeal = ESL::Parse(argc[1]);
+		//pSESeal = ESL::Parse(argv[1]);
 		
+#if 1
 		TGSealInfo tgseal;
 		tgseal.strSealCertID = "strSealCertID";
 		tgseal.strSealCertB64 = "strSealCertB64";
@@ -325,14 +327,31 @@ int main(int argc, char* argv[])
 		pSESeal = ESL::TGSealToSESeal(tgseal);
 		if (pSESeal)
 		{
-// 			unsigned char* out2 = nullptr;
-// 			int nLen2 = i2d_SESeal(pSESeal, &out2);
-// 			WriteDataToFile((char*)out2, nLen2, "c:\\test2.cer");
+			string str = ESL::GetValue(pSESeal);
+			WriteDataToFile(str.c_str(), str.length(), "c:\\seseal.cer");
+
+			long version = 1;
+			string sealData = str;
+			string timeInfo = "timeInfo";
+			string dataHash = "dataHash";
+			string propertyInfo = "propertyInfo";
+			string cert = "cert";
+			string signatureAlgorithm = "signatureAlgorithm";
+			string signatureValue = "signatureValue";
+			SES_Signature* sessignature = ESL::EncodeSignature(1, str, timeInfo, dataHash, propertyInfo, cert, signatureAlgorithm, signatureValue);
+			if (sessignature)
+			{
+				string str = ESL::GetValue(sessignature);
+				WriteDataToFile(str.c_str(), str.length(), "c:\\sessignature.cer");
+
+				str = ESL::GetValue(sessignature->toSign);
+				WriteDataToFile(str.c_str(), str.length(), "c:\\tbssign.cer");
+			}
+			ESL::Free(&sessignature);
 		}
+#endif
 	}
-	
-	SESeal_free(pSESeal);
-	ESL::CleanUp();
+	ESL::Free(&pSESeal);
 
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	return 0;
