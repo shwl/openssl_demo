@@ -5,6 +5,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <openssl/pkcs7.h>
 #include <string>
 #include <iostream>
 #include "TGSignCommonInfo.h"
