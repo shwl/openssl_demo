@@ -5,7 +5,6 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
-#include <openssl/pkcs7.h>
 #include <string>
 #include <iostream>
 #include "TGSignCommonInfo.h"
@@ -97,18 +96,33 @@ public:
 	static void CleanUp();
 
 	static SESeal* TGSealToSESeal(const TGSealInfo& sealInfo);
+
 	static SESeal* Parse(string path);
 	static SESeal* Parse(char* data, int len);
+    static SESeal* DecodeSESeal(const string& seseal, bool isBase64 = false);
+	
 	static SES_Signature* EncodeSignature(long version, const string& sealData, const string& timeInfo, const string& dataHash,
 		const string& propertyInfo, const string& cert, const string& signatureAlgorithm, const string& signatureValue);
 	static SES_Signature* DecodeSignature(char* data, int len);
 
-	static string GetValue(SESeal* seseal);
-	static string GetValue(TBS_Sign* tbssign);
-	static string GetValue(SES_Signature* sessignature);
+    static string GetValue(SESeal* seseal, bool isToBase64 = false);
+    static string GetValue(TBS_Sign* tbssign, bool isToBase64 = false);
+    static string GetValue(SES_Signature* sessignature, bool isToBase64 = false);
 
 	static void Free(SESeal** seseal);
 	static void Free(SES_Signature** sessignature);
+
+    static SES_SignInfo* EncodeSignInfo(const string& certB64, const string& alg, const string& signRes);
+    static SES_SignInfo* DecodeSignInfo(const string& signInfo, bool isBase64 = false);
+    static string GetValue(SES_SignInfo* sessigninfo, bool isToBase64 = false);
+    static void Free(SES_SignInfo** sessigninfo);
+
+    static string GetInnerValue(asn1_string_st* asn1str, bool isToBase64 = false);
+	static string GetInnerValue(ASN1_OBJECT* asn1obj);
+
+    static SES_SealInfo* DecodeSealInfo(const string& sealInfo, bool isBase64 = false);
+	static string GetValue(SES_SealInfo* sessealinfo, bool isToBase64 = false);
+	static void Free(SES_SealInfo** sessealinfo);
 };
 
 #endif // ESL_H

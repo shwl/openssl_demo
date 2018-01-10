@@ -1,6 +1,7 @@
 #include "esl.h"
 #include <crtdbg.h>
 #include <openssl/asn1_mac.h>
+#include "Base64Tools.h"
 
 #include <fstream>
 long WriteDataToFile(const char* data, long dataLen = -1, char* fileName = nullptr)
@@ -34,6 +35,29 @@ long WriteDataToFile(const char* data, long dataLen = -1, char* fileName = nullp
 
 	return lRes;
 }
+
+string ReadFile(const char* fileName)
+{
+	string data;
+	fstream readFile;
+	char buf[1024] = {};
+	long len = _countof(buf);
+	readFile.open(fileName, ios::in | ios::binary);
+	if (readFile.is_open())
+	{
+		while (!readFile.eof())
+		{
+			readFile.read(buf, len);
+			streamsize readLen = readFile.gcount();
+			data.append(buf, readLen);
+		}
+
+		readFile.close();
+	}
+
+	return data;
+}
+
 #if 0
 
 #define ECCref_MAX_BITS 256 
@@ -290,10 +314,28 @@ int	test()
 }
 #endif
 
+void SES_SignInfoTest(const string& signValueB64)
+{
+	SES_SignInfo* sessigninfo = ESL::DecodeSignInfo(signValueB64, true);
+	if (sessigninfo)
+	{
+		string strSignCertB64 = ESL::GetValue(sessigninfo->cert, true);
+		string alg = ESL::GetValue(sessigninfo->signatureAlgorithm);
+		string signValue = ESL::GetValue(sessigninfo->signData);
+// 		string signcertalg = TGCertTools::GetCertInfo(strSignCertB64, SGD_GET_CERT_SIGNALGOID);
+// 		if (0 == alg.compare(signcertalg)){
+// 			lRes = 0;
+// 		}
+// 		else{
+// 			lRes = -1;
+// 		}
+		ESL::Free(&sessigninfo);
+	}
+}
 int main(int argc, char* argv[])
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF);
-	//_CrtSetBreakAlloc(727);
+//	_CrtSetBreakAlloc(309);
 // 	ECCrefPublicKey cipher;
 // 	unsigned char* out = nullptr;
 // 	int nLen = i2d_ECC_PublicKey(&cipher, &out);
@@ -304,8 +346,25 @@ int main(int argc, char* argv[])
 	if (argc > 1)
 	{
 		//pSESeal = ESL::Parse(argv[1]);
-		
-#if 1
+		string str = ReadFile(argv[1]);
+		string str1 = Base64Tools::base64_decode(str);
+// 		pSESeal = ESL::Parse((char*)str1.c_str(), str1.length());
+// 		ESL::Free(&pSESeal);
+
+		pSESeal = SESeal_new();
+		SES_SealInfo* pSealInfo = ESL::DecodeSealInfo((char*)str1.c_str(), str1.length());
+		ESL::Free(&pSESeal->sealInfo);
+		pSESeal->sealInfo = pSealInfo;
+		string sealinfostr = ESL::GetValue(pSESeal->sealInfo);
+		int ncmp = sealinfostr.compare(str1);
+
+		string strseseal = ESL::GetValue(pSESeal);
+		WriteDataToFile(strseseal.c_str(), strseseal.length(), "c:\\seseal.cer");
+
+		ESL::Free(&pSESeal);
+		//ESL::Free(&pSealInfo);
+		//SES_SignInfoTest(str);
+#if 0
 		TGSealInfo tgseal;
 		tgseal.strSealCertID = "strSealCertID";
 		tgseal.strSealCertB64 = "strSealCertB64";
@@ -318,7 +377,7 @@ int main(int argc, char* argv[])
 		tgseal.strSealValidEnd = "strSealValidEnd";
 		tgseal.strSealVersion = "1";
 		tgseal.strSealVid = "TGSealVid";
-		tgseal.strSealSignAlgo = "strSealSignAlgo";
+		tgseal.strSealSignAlgo = "1.2.156.10197.1.501";
 		tgseal.strMaker = "strMaker";
 		tgseal.strSealSignRes = "strSealSignRes";
 		tgseal.nType = 2;
@@ -348,11 +407,11 @@ int main(int argc, char* argv[])
 				WriteDataToFile(str.c_str(), str.length(), "c:\\tbssign.cer");
 			}
 			ESL::Free(&sessignature);
+			ESL::Free(&pSESeal);
 		}
 #endif
 	}
-	ESL::Free(&pSESeal);
-
+	
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	return 0;
 }

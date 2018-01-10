@@ -20,11 +20,15 @@ inline asn1_string_st* toAsn1String(asn1_string_st** str, const int value, int t
 
 inline asn1_object_st* toAsn1Object(asn1_object_st** obj, const string& value)
 {
-	if (!*obj){
-		*obj = ASN1_OBJECT_new();
-	}
-	const unsigned char* buf = (unsigned char*)value.c_str();
-	c2i_ASN1_OBJECT(obj, &buf, value.length());
+    ASN1_OBJECT *objTmp = OBJ_txt2obj(value.c_str(), 1);
+    if (!objTmp)
+    {
+        const unsigned char* buf = (unsigned char*)value.c_str();
+        d2i_ASN1_OBJECT(&objTmp, &buf, value.length());
+    }
+    if(objTmp){
+        *obj = objTmp;
+    }
 	return *obj;
 }
 
@@ -182,12 +186,23 @@ SESeal* ESL::Parse(char* data, int len)
     return seal;
 }
 
+SESeal* ESL::DecodeSESeal(const string &seseal, bool isBase64)
+{
+    string strTmp = seseal;
+    if(isBase64){
+        strTmp = Base64Tools::base64_decode(seseal);
+    }
+    const char* data = strTmp.c_str();
+    int len = strTmp.length();
+    return Parse((char*)data, len);
+}
+
 SES_Signature* ESL::EncodeSignature(long version, const string& sealData, const string& timeInfo, const string& dataHash,
 	const string& propertyInfo, const string& cert, const string& signatureAlgorithm, const string& signatureValue)
 {
 	SES_Signature* sessignature = SES_Signature_new();
 	TBS_Sign* pToSign = sessignature->toSign;
-	toAsn1String(&pToSign->cert, version);
+    toAsn1String(&pToSign->version, version);
 	const char* pSealData = sealData.c_str();
 	d2i_SESeal(&pToSign->seal, (const unsigned char**)&pSealData, sealData.length());
 	toAsn1String(&pToSign->timeInfo, timeInfo, V_ASN1_BIT_STRING);
@@ -234,8 +249,8 @@ SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 	picture->type = toAsn1String(&picture->type, sealInfo.nType, V_ASN1_INTEGER);
 	string strImgData = Base64Tools::base64_decode(sealInfo.strImgBase64);
 	picture->data = toAsn1String(&picture->data, strImgData, V_ASN1_OCTET_STRING);
-	picture->width = toAsn1String(&picture->width, sealInfo.nImageWidth, V_ASN1_INTEGER);
-	picture->height = toAsn1String(&picture->height, sealInfo.nImageHeight, V_ASN1_INTEGER);
+    picture->width = toAsn1String(&picture->width, sealInfo.nImageWidth, V_ASN1_INTEGER);
+    picture->height = toAsn1String(&picture->height, sealInfo.nImageHeight, V_ASN1_INTEGER);
 	
 	string strCertData = Base64Tools::base64_decode(sealInfo.strSealCertB64);
 	sesSignInfo->cert = toAsn1String(&sesSignInfo->cert, strCertData, V_ASN1_OCTET_STRING);
@@ -251,26 +266,32 @@ SESeal* ESL::TGSealToSESeal(const TGSealInfo &sealInfo)
 	return seSeal;
 }
 
-#define TG_GETASN1VALUE(data, i2dfunc) string str; \
+#define TG_GETASN1VALUE(data, i2dfunc, isToBase64) string str; \
 	unsigned char* out = nullptr; \
 	int nLen = i2dfunc(data, &out); \
-	str.append((char*)out, nLen); \
+    if(isToBase64){ \
+        str = Base64Tools::base64_encode(out, nLen); \
+    } \
+    else{ \
+        str.append((char*)out, nLen); \
+    } \
 	OPENSSL_free(out); \
 	return str;
 
-string ESL::GetValue(SESeal* seseal)
+
+string ESL::GetValue(SESeal* seseal, bool isToBase64 /* = false */)
 {
-	TG_GETASN1VALUE(seseal, i2d_SESeal);
+    TG_GETASN1VALUE(seseal, i2d_SESeal, isToBase64);
 }
 
-string ESL::GetValue(TBS_Sign* tbssign)
+string ESL::GetValue(TBS_Sign* tbssign, bool isToBase64 /* = false */)
 {
-	TG_GETASN1VALUE(tbssign, i2d_TBS_Sign);
+    TG_GETASN1VALUE(tbssign, i2d_TBS_Sign, isToBase64);
 }
 
-string ESL::GetValue(SES_Signature* sessignature)
+string ESL::GetValue(SES_Signature* sessignature, bool isToBase64 /* = false */)
 {
-	TG_GETASN1VALUE(sessignature, i2d_SES_Signature);
+    TG_GETASN1VALUE(sessignature, i2d_SES_Signature, isToBase64);
 }
 
 void ESL::Free(SESeal** seseal)
@@ -283,4 +304,106 @@ void ESL::Free(SES_Signature** sessignature)
 {
 	SES_Signature_free(*sessignature);
 	*sessignature = nullptr;
+}
+
+SES_SignInfo* ESL::EncodeSignInfo(const string &certB64, const string &alg, const string &signRes)
+{
+    SES_SignInfo* signinfo = SES_SignInfo_new();
+    if(signinfo)
+    {
+        string cert = Base64Tools::base64_decode(certB64);
+        toAsn1String(&signinfo->cert, cert, V_ASN1_OCTET_STRING);
+        toAsn1Object(&signinfo->signatureAlgorithm, alg);
+        toAsn1String(&signinfo->signData, signRes, V_ASN1_BIT_STRING);
+    }
+    return signinfo;
+}
+
+SES_SignInfo* ESL::DecodeSignInfo(const string &signInfo, bool isBase64)
+{
+    string strTmp = signInfo;
+    if(isBase64){
+        strTmp = Base64Tools::base64_decode(signInfo);
+    }
+    const char* data = strTmp.c_str();
+    int len = strTmp.length();
+    SES_SignInfo* sessigninfo = nullptr;
+    d2i_SES_SignInfo(&sessigninfo, (const unsigned char**)&data, len);
+    return sessigninfo;
+}
+
+string ESL::GetValue(SES_SignInfo *sessigninfo, bool isToBase64)
+{
+    TG_GETASN1VALUE(sessigninfo, i2d_SES_SignInfo, isToBase64);
+}
+
+void ESL::Free(SES_SignInfo **sessigninfo)
+{
+    if(*sessigninfo)
+    {
+        SES_SignInfo_free(*sessigninfo);
+        *sessigninfo = nullptr;
+    }
+}
+
+string ESL::GetInnerValue(asn1_string_st *asn1str, bool isToBase64)
+{
+	string str;
+	unsigned char* out = ASN1_STRING_data(asn1str);
+	int nLen = ASN1_STRING_length(asn1str);
+	if (nLen > 0)
+	{
+		if (isToBase64){
+			str = Base64Tools::base64_encode(out, nLen);
+		}
+		else{
+			str.append((char*)out, nLen);
+		}
+	}
+	return str;
+}
+
+string ESL::GetInnerValue(ASN1_OBJECT *asn1obj)
+{
+    string strRes;
+    if(asn1obj)
+    {
+        int buf_len = asn1obj->length + 128;
+        char *buf = new char[buf_len];
+        memset(buf, 0, buf_len);
+        int n = OBJ_obj2txt(buf, buf_len, asn1obj, 1);
+        if(0 < n)
+        {
+            strRes = buf;
+        }
+        delete buf;
+    }
+    return strRes;
+}
+
+SES_SealInfo* ESL::DecodeSealInfo(const string &sealInfo, bool isBase64)
+{
+    string strTmp = sealInfo;
+    if(isBase64){
+        strTmp = Base64Tools::base64_decode(sealInfo);
+    }
+    const char* data = strTmp.c_str();
+    int len = strTmp.length();
+    SES_SealInfo* sealinfo = nullptr;
+    d2i_SES_SealInfo(&sealinfo, (const unsigned char**)&data, len);
+    return sealinfo;
+}
+
+string ESL::GetValue(SES_SealInfo* sessealinfo, bool isToBase64 /* = false */)
+{
+	TG_GETASN1VALUE(sessealinfo, i2d_SES_SealInfo, isToBase64);
+}
+
+void ESL::Free(SES_SealInfo** sessealinfo)
+{
+	if (*sessealinfo)
+	{
+		SES_SealInfo_free(*sessealinfo);
+		*sessealinfo = nullptr;
+	}
 }
