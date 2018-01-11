@@ -24,7 +24,7 @@ inline asn1_object_st* toAsn1Object(asn1_object_st** obj, const string& value)
     if (!objTmp)
     {
         const unsigned char* buf = (unsigned char*)value.c_str();
-        d2i_ASN1_OBJECT(&objTmp, &buf, value.length());
+        c2i_ASN1_OBJECT(&objTmp, &buf, value.length());
     }
     if(objTmp){
         *obj = objTmp;
