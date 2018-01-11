@@ -342,12 +342,45 @@ int main(int argc, char* argv[])
 // 	WriteDataToFile((char*)out, nLen, "c:\\test.cer");
 
 	SESeal* pSESeal = nullptr;
-
+	SESealList* pSESealList = nullptr;
+	const char* seallistfile = "c:\\seseallist.cer";
 	if (argc > 1)
 	{
+#if 0
+		pSESealList = SESealList_new();
+		if (argc > 2)
+		{
+			for (int i = 1; i < argc; ++i)
+			{
+				auto seal = ESL::Parse(argv[i]);
+				if (seal)
+				{
+					SKM_sk_push(SESeal, pSESealList, seal);
+				}
+			}
+			string strseseallist = ESL::GetValue(pSESealList);
+			WriteDataToFile(strseseallist.c_str(), strseseallist.length(), (char*)seallistfile);
+		}
+#else
+		string sealliststr = ReadFile(seallistfile);
+		pSESealList = ESL::DecodeSESealList(sealliststr);
+		if (pSESealList)
+		{
+			int num = SKM_sk_num(SESeal, pSESealList);
+			for (int i = 0; i < num; ++i)
+			{
+				SESeal* seal = SKM_sk_value(SESeal, pSESealList, i);
+				char buf[MAX_PATH] = {};
+				sprintf(buf, "c:\\outseal_%d.cer", i);
+				string sealstr = ESL::GetValue(seal);
+				WriteDataToFile(sealstr.c_str(), sealstr.length(), buf);
+			}
+		}
+#endif
+
 		//pSESeal = ESL::Parse(argv[1]);
 		string str = ReadFile(argv[1]);
-		string str1 = Base64Tools::base64_decode(str);
+		//str = Base64Tools::base64_decode(str);
  		pSESeal = ESL::Parse((char*)str.c_str(), str.length());
 // 		ESL::Free(&pSESeal);
 
@@ -356,7 +389,7 @@ int main(int argc, char* argv[])
 // 		ESL::Free(&pSESeal->sealInfo);
 // 		pSESeal->sealInfo = pSealInfo;
 		string sealinfostr = ESL::GetValue(pSESeal->sealInfo);
-		int ncmp = sealinfostr.compare(str1);
+		int ncmp = sealinfostr.compare(str);
 		SEQUENCE_CERTLIST* certList = pSESeal->sealInfo->property->certList;
 		//int certnum = certList->stack.num;
 		string strseseal = ESL::GetValue(pSESeal);
@@ -412,6 +445,7 @@ int main(int argc, char* argv[])
 		}
 #endif
 	}
+	SESealList_free(pSESealList);
 	ESL::CleanUp();
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	return 0;

@@ -72,6 +72,10 @@ struct SESeal {
 };
 DECLARE_ASN1_FUNCTIONS(SESeal)
 
+typedef STACK_OF(SESeal) SESealList;
+DECLARE_STACK_OF(SESeal)
+DECLARE_ASN1_FUNCTIONS(SESealList)
+
 struct TBS_Sign {
     ASN1_INTEGER* version;
     SESeal* seal;
@@ -106,6 +110,7 @@ public:
 	static SES_Signature* EncodeSignature(long version, const string& sealData, const string& timeInfo, const string& dataHash,
 		const string& propertyInfo, const string& cert, const string& signatureAlgorithm, const string& signatureValue);
 	static SES_Signature* DecodeSignature(char* data, int len);
+	static SES_Signature* DecodeSignature(const string& signature, bool isBase64 = false);
 
     static string GetValue(SESeal* seseal, bool isToBase64 = false);
     static string GetValue(TBS_Sign* tbssign, bool isToBase64 = false);
@@ -125,6 +130,10 @@ public:
     static SES_SealInfo* DecodeSealInfo(const string& sealInfo, bool isBase64 = false);
 	static string GetValue(SES_SealInfo* sessealinfo, bool isToBase64 = false);
 	static void Free(SES_SealInfo** sessealinfo);
+
+	static SESealList* DecodeSESealList(const string& seseallist, bool isBase64 = false);
+	static string GetValue(SESealList* seseallist, bool isToBase64 = false);
+	static void Free(SESealList** seseallist);
 };
 
 #endif // ESL_H
