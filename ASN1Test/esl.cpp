@@ -7,7 +7,17 @@ inline asn1_string_st* toAsn1String(asn1_string_st** str, const string& value, i
 		*str = ASN1_STRING_type_new(type);
 	}
 	int len = value.length();
-	ASN1_STRING_set(*str, (void*)value.c_str(), len);
+	const char* data = value.c_str();
+	if (V_ASN1_INTEGER == type)
+	{
+		long lv = atol(data);
+		ASN1_INTEGER_set(*str, lv);
+		auto a = ESL::GetInnerValue(*str, true);
+		cout << a.c_str() << endl;
+	}
+	else{
+		ASN1_STRING_set(*str, (void*)data, len);
+	}
 	return *str;
 }
 
@@ -354,16 +364,25 @@ void ESL::Free(SES_SignInfo **sessigninfo)
 string ESL::GetInnerValue(asn1_string_st *asn1str, bool isToBase64)
 {
 	string str;
-	unsigned char* out = ASN1_STRING_data(asn1str);
-	int nLen = ASN1_STRING_length(asn1str);
-	if (nLen > 0)
+	if (V_ASN1_INTEGER == asn1str->type)
 	{
-		if (isToBase64){
-			str = Base64Tools::base64_encode(out, nLen);
-		}
-		else{
+		long lv = ASN1_INTEGER_get(asn1str);
+		char buf[256] = {};
+		sprintf(buf, "%d", lv);
+		str = buf;
+	}
+	else
+	{
+		unsigned char* out = ASN1_STRING_data(asn1str);
+		int nLen = ASN1_STRING_length(asn1str);
+		if (nLen > 0)
+		{
 			str.append((char*)out, nLen);
 		}
+	}
+
+	if (isToBase64){
+		str = Base64Tools::base64_encode((const unsigned char*)str.c_str(), str.length());
 	}
 	return str;
 }

@@ -71,12 +71,14 @@
   <ItemGroup>
     <ClCompile Include="Base64Tools.cpp" />
     <ClCompile Include="esl.cpp" />
+    <ClCompile Include="FileTools.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="TGStringUtil.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base64Tools.h" />
     <ClInclude Include="esl.h" />
+    <ClInclude Include="FileTools.h" />
     <ClInclude Include="tgcommonbase.h" />
     <ClInclude Include="TGSignCommonInfo.h" />
     <ClInclude Include="TGStringUtil.h" />

@@ -2,61 +2,7 @@
 #include <crtdbg.h>
 #include <openssl/asn1_mac.h>
 #include "Base64Tools.h"
-
-#include <fstream>
-long WriteDataToFile(const char* data, long dataLen = -1, char* fileName = nullptr)
-{
-	bool bFlag = false;
-	long lRes = 0;
-	if (!fileName)
-	{
-		fileName = "c:\\test.log";
-		bFlag = true;
-	}
-	ios_base::openmode _Mode = ios::out | ios::binary | ios::ate;
-	if (bFlag){
-		_Mode = ios::out | ios::binary | ios::app;
-	}
-	fstream writeFile;
-	writeFile.open(fileName, _Mode);
-	if (!writeFile.is_open()){
-		lRes = 403;
-	}
-
-	if (0 == lRes)
-	{
-		dataLen = (-1 == dataLen) ? strlen(data) : dataLen;
-		writeFile.write(data, dataLen);
-		if (bFlag){
-			writeFile.write("\r\n", 2);
-		}
-		writeFile.close();
-	}
-
-	return lRes;
-}
-
-string ReadFile(const char* fileName)
-{
-	string data;
-	fstream readFile;
-	char buf[1024] = {};
-	long len = _countof(buf);
-	readFile.open(fileName, ios::in | ios::binary);
-	if (readFile.is_open())
-	{
-		while (!readFile.eof())
-		{
-			readFile.read(buf, len);
-			streamsize readLen = readFile.gcount();
-			data.append(buf, readLen);
-		}
-
-		readFile.close();
-	}
-
-	return data;
-}
+#include "FileTools.h"
 
 #if 0
 
@@ -335,6 +281,7 @@ void SES_SignInfoTest(const string& signValueB64)
 int main(int argc, char* argv[])
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF);
+
 //	_CrtSetBreakAlloc(302);
 // 	ECCrefPublicKey cipher;
 // 	unsigned char* out = nullptr;
@@ -373,6 +320,8 @@ int main(int argc, char* argv[])
 				char buf[MAX_PATH] = {};
 				sprintf(buf, "c:\\outseal_%d.cer", i);
 				string sealstr = ESL::GetValue(seal);
+				string w = ESL::GetInnerValue(seal->sealInfo->picture->width);
+				string h = ESL::GetInnerValue(seal->sealInfo->picture->height);
 				WriteDataToFile(sealstr.c_str(), sealstr.length(), buf);
 			}
 		}
@@ -388,14 +337,18 @@ int main(int argc, char* argv[])
 // 		SES_SealInfo* pSealInfo = ESL::DecodeSealInfo((char*)str1.c_str(), str1.length());
 // 		ESL::Free(&pSESeal->sealInfo);
 // 		pSESeal->sealInfo = pSealInfo;
-		string sealinfostr = ESL::GetValue(pSESeal->sealInfo);
-		int ncmp = sealinfostr.compare(str);
-		SEQUENCE_CERTLIST* certList = pSESeal->sealInfo->property->certList;
-		//int certnum = certList->stack.num;
-		string strseseal = ESL::GetValue(pSESeal);
-		WriteDataToFile(strseseal.c_str(), strseseal.length(), "c:\\seseal.cer");
+		if (pSESeal)
+		{
+			string sealinfostr = ESL::GetValue(pSESeal->sealInfo);
+			int ncmp = sealinfostr.compare(str);
+			SEQUENCE_CERTLIST* certList = pSESeal->sealInfo->property->certList;
+			//int certnum = certList->stack.num;
+			string strseseal = ESL::GetValue(pSESeal);
+			WriteDataToFile(strseseal.c_str(), strseseal.length(), "c:\\seseal.cer");
 
-		ESL::Free(&pSESeal);
+			ESL::Free(&pSESeal);
+		}
+		
 		//ESL::Free(&pSealInfo);
 		//SES_SignInfoTest(str);
 #if 1

@@ -27,6 +27,9 @@
     <ClCompile Include="Base64Tools.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="FileTools.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="esl.h">
@@ -42,6 +45,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Base64Tools.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FileTools.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
