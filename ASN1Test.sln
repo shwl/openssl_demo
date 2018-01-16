@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PKCS7Test", "PKCS7Test\PKCS
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PFXCertSign", "PFXCertSign\PFXCertSign.vcxproj", "{9A575910-4F37-40AC-B7AA-040B7FF1B7AA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CertVerify", "CertVerify\CertVerify.vcxproj", "{E2FC4E5E-D191-448E-9944-F789AC4BF23C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -27,6 +29,10 @@ Global
 		{9A575910-4F37-40AC-B7AA-040B7FF1B7AA}.Debug|Win32.Build.0 = Debug|Win32
 		{9A575910-4F37-40AC-B7AA-040B7FF1B7AA}.Release|Win32.ActiveCfg = Release|Win32
 		{9A575910-4F37-40AC-B7AA-040B7FF1B7AA}.Release|Win32.Build.0 = Release|Win32
+		{E2FC4E5E-D191-448E-9944-F789AC4BF23C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E2FC4E5E-D191-448E-9944-F789AC4BF23C}.Debug|Win32.Build.0 = Debug|Win32
+		{E2FC4E5E-D191-448E-9944-F789AC4BF23C}.Release|Win32.ActiveCfg = Release|Win32
+		{E2FC4E5E-D191-448E-9944-F789AC4BF23C}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

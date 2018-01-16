@@ -288,7 +288,7 @@ bool PKCS7_VerifySign(char*certFile, char* plainText, char* cipherText)
 		sk_X509_push(stack, cert);
 
 		//ÑéÖ¤Ç©Ãû
-		int err = PKCS7_verify(p7, stack, NULL, bio, NULL, PKCS7_NOVERIFY);
+		int err = PKCS7_verify(p7, stack, NULL, bio, NULL, 0);
 
 		if (err != 1) {
 			ERR_print_errors_fp(stderr);
@@ -362,7 +362,7 @@ int main(int argc, char* argv[])
 	}
 	string res = PKCS7_Test(signcert.c_str(), signcert.length());
 	cout << res.c_str() << endl;
-#if 0
+#if 1
 	char certFile[] = "1.pfx";
 	char plainText[] = "Hello,World!";
 
