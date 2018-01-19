@@ -18,6 +18,8 @@
   <ItemGroup>
     <ClInclude Include="..\ASN1Test\Base64Tools.h" />
     <ClInclude Include="..\ASN1Test\FileTools.h" />
+    <ClInclude Include="SKFAPI.h" />
+    <ClInclude Include="TGSignSM2.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E2FC4E5E-D191-448E-9944-F789AC4BF23C}</ProjectGuid>
